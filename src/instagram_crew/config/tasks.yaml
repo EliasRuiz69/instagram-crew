@@ -1,0 +1,117 @@
+research_task:
+  description: >
+    Investiga el tema "{topic}" usando Tavily. Realiza máximo 2 búsquedas:
+    una en español y una en inglés. Identifica 3 ángulos relevantes y
+    3 datos concretos.
+
+    Formato de salida JSON:
+    {{
+      "tema": "...",
+      "angulos_principales": ["...", "...", "..."],
+      "datos_clave": ["dato 1", "dato 2", "dato 3"],
+      "tono_sugerido": "...",
+      "contexto_visual": "descripción visual en una frase"
+    }}
+  expected_output: >
+    Un objeto JSON con los campos: tema, angulos_principales, datos_clave,
+    tono_sugerido y contexto_visual.
+  agent: trend_researcher
+
+copywriting_task:
+  description: >
+    Con base en el JSON de investigación, redacta un post completo para
+    Instagram que cumpla estas reglas:
+
+    ESTRUCTURA OBLIGATORIA:
+    1. GANCHO (primera línea): pregunta impactante o dato sorprendente que
+       detenga el scroll. Máximo 12 palabras.
+    2. DESARROLLO: 2-3 oraciones que expliquen el tema con los datos más
+       relevantes. Usa emojis con moderación (máximo 4 en todo el post).
+    3. CIERRE + CTA: una oración que invite a guardar, compartir, comentar
+       o reflexionar.
+    4. HASHTAGS: exactamente 10 hashtags relevantes en español e inglés,
+       mezclando hashtags de alto volumen con hashtags de nicho del tema.
+
+    RESTRICCIONES:
+    - Idioma: español neutro latinoamericano
+    - Extensión del caption (sin contar hashtags): entre 100 y 125 palabras EXACTAS
+    - Tono: alineado con el tono_sugerido del JSON de investigación
+    - NO usar lenguaje corporativo ni frases genéricas como "en el mundo actual"
+
+    Formato de salida requerido:
+    {{
+      "caption": "texto completo del post con emojis",
+      "hashtags": "#tag1 #tag2 ... #tag10",
+      "conteo_palabras": número,
+      "prompt_imagen": "descripción detallada en inglés para generar la imagen
+                        con IA. Estilo fotorrealista, vibrante, formato cuadrado,
+                        sin texto ni letras en la imagen."
+    }}
+  expected_output: >
+    Un objeto JSON con: caption (100-125 palabras, español), hashtags (10 tags),
+    conteo_palabras y prompt_imagen en inglés para generación con IA.
+  agent: instagram_copywriter
+  context:
+    - research_task
+
+image_generation_task:
+  description: >
+    Usa el campo prompt_imagen del JSON del redactor para generar una imagen
+    con la herramienta HuggingFaceImageTool.
+
+    Parámetros de generación:
+    - Modelo: stabilityai/stable-diffusion-xl-base-1.0
+    - Dimensiones: 1024x1024 px
+    - Negative prompt: "text, watermark, logo, words, letters, blurry,
+      low quality, distorted"
+    - Guardar como: "post_image.png" en la carpeta /output
+
+    Si la generación falla, reintenta con el prompt simplificado a sus
+    10 palabras más descriptivas.
+
+    Retorna:
+    {{
+      "imagen_path": "/output/post_image.png",
+      "prompt_usado": "...",
+      "modelo": "stabilityai/stable-diffusion-xl-base-1.0",
+      "estado": "exitoso"
+    }}
+  expected_output: >
+    Un objeto JSON con imagen_path (ruta local del PNG), prompt_usado,
+    modelo utilizado y estado de la operación.
+  agent: image_creator
+  context:
+    - copywriting_task
+
+instagram_publish_task:
+  description: >
+    Ejecuta la publicación en Instagram Business siguiendo el flujo oficial
+    de Meta Graph API v21.0:
+
+    PASO 1 — Subir imagen a imgbb.com y obtener URL pública.
+
+    PASO 2 — Crear Media Container:
+    POST https://graph.instagram.com/v21.0/{account_id}/media
+    Parámetros: image_url, caption (caption + hashtags concatenados), media_type: IMAGE
+
+    PASO 3 — Esperar 5 segundos.
+
+    PASO 4 — Publicar el Container:
+    POST https://graph.instagram.com/v21.0/{account_id}/media_publish
+    Parámetros: creation_id (obtenido en Paso 2)
+
+    Retorna:
+    {{
+      "estado": "publicado",
+      "post_id": "...",
+      "caption_preview": "primeras 50 caracteres...",
+      "timestamp": "fecha y hora",
+      "error_detalle": null
+    }}
+  expected_output: >
+    Un objeto JSON confirmando estado de publicación, post_id, timestamp
+    y preview del caption publicado.
+  agent: instagram_publisher
+  context:
+    - copywriting_task
+    - image_generation_task
